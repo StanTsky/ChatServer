@@ -1,5 +1,14 @@
-// Chatroom server
-// Stan Turovsky
+/*
+--------------------------------------------------------------------
+* Name:       Stan Turovsky
+* Class:      CPSC 24500 -- Object-Oriented Programming
+* Assignment: HW 4
+* File:       main.cs
+* Purpose:    Chatroom server in C#
+*             -Shows usage of class constructors and destructors
+*             -Needs to run before the chat client
+--------------------------------------------------------------------
+*/
 
 using System;
 using System.Collections.Generic;
@@ -7,7 +16,6 @@ using System.Text;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-using System.Timers;
 
 namespace ChatServer
 {
@@ -24,14 +32,14 @@ namespace ChatServer
     class Chatroom
     {
         private Dictionary<Socket, string> ConnectionHandlers = new Dictionary<Socket, string>();
-        int Connections = 0;        // counts connections
-        Socket MyChatSocket;        // current chat socket
-        public Chatroom()
+        int _connections;             // counts connections
+        Socket _myChatSocket;         // current chat socket
+        public Chatroom()             // class constructor
         {
             Console.WriteLine("Chat room created!");
         }
 
-        ~Chatroom()
+        ~Chatroom()                   // class destructor
         {
             Console.WriteLine("Chat room closed!");
         }
@@ -51,15 +59,15 @@ namespace ChatServer
             catch (SocketException)
             {
                 Console.WriteLine($"Message: {usr} disconnected!");
-                ConnectionHandlers.Remove(MyChatSocket);
-                Connections -= 1;                           // reduce connection count
+                ConnectionHandlers.Remove(_myChatSocket);
+                _connections -= 1;                           // reduce connection count
             }
             catch (Exception e) // Exception e
             {
                 Console.WriteLine($"Exception: {e.Message}");
             }
-
         }
+
         public void PingConnections(Socket s, string msg)
         {
             try
@@ -81,33 +89,32 @@ namespace ChatServer
         }
         public void AddConnection(Socket s)
         {
-            Connections += 1;
-            MyChatSocket = s;
-            Thread tRD = new Thread(ReadData);
-            tRD.Start();
+            _connections += 1;
+            _myChatSocket = s;
+            Thread tRd = new Thread(ReadData);
+            tRd.Start();
         }
 
         public void ReadData()      //object socket
         {
-            MyChatSocket.Send(StringExtension.ToByteArray("Username?"));    // ask for user name
-            byte[] buffer = new byte[1024];                                 // buffer byte array
-            int k = MyChatSocket.Receive(buffer);                           // 
-            string username = ByteExtension.GetString(buffer, k);           // read user name
+            _myChatSocket.Send(StringExtension.ToByteArray("Username?"));    // ask for user name
+            byte[] buffer = new byte[1024];                                  // buffer byte array
+            int k = _myChatSocket.Receive(buffer);                            
+            string username = ByteExtension.GetString(buffer, k);            // read user name
             if (username.Length<1)
-                username = DateTime.Now.Ticks.ToString();           // handles missing user name
-            ConnectionHandlers.Add(MyChatSocket, username);         // add new user
-            Console.WriteLine($"Connection accepted from {MyChatSocket.RemoteEndPoint}");
+                username = DateTime.Now.Ticks.ToString();            // handles missing user name
+            ConnectionHandlers.Add(_myChatSocket, username);         // add new user
+            Console.WriteLine($"Connection accepted from {_myChatSocket.RemoteEndPoint}");
 
             while (true)
             {
                 try
                 {
-                    k = MyChatSocket.Receive(buffer);
+                    k = _myChatSocket.Receive(buffer);
                     string msg = ByteExtension.GetString(buffer, k);
+                    //SendGlobalMessage(MyChatSocket, msg);              // EventMessage (not used)
 
-                    //SendGlobalMessage(MyChatSocket, msg);               // EventMessage (not used)
-
-                    Message(MyChatSocket, msg, username);               // replaces code below
+                    Message(_myChatSocket, msg, username);               // replaces code below
 
                     //foreach (KeyValuePair<Socket, string> otherClient in ConnectionHandlers)
                     //{
@@ -121,9 +128,9 @@ namespace ChatServer
                 }
                 catch (SocketException)
                 {
-                    ConnectionHandlers.Remove(MyChatSocket);    // remove user from the connections
-                    Connections -= 1;                           // reduce connection count
-                    Console.WriteLine($"{username} disconnected! {Connections} connections remain(s)...");
+                    ConnectionHandlers.Remove(_myChatSocket);    // remove user from the connections
+                    _connections -= 1;                           // reduce connection count
+                    Console.WriteLine($"{username} disconnected! {_connections} connections remain(s)...");
                     break;
                 }
                 catch (Exception e) // Exception e
@@ -135,19 +142,19 @@ namespace ChatServer
             //MyChatSocket.Close();
         }
         public delegate void EventMessage(Socket s, string msg);
-        public event EventMessage SendGlobalMessage;
+        // public event EventMessage SendGlobalMessage;     // EventMessage (not used)
     }
     class Server : TcpListener
     {
-        Socket MySocket;
+        Socket _mySocket;
 
         public Server(): base(IPAddress.Loopback, 5000)
         {
             this.Start();                           // starts server
             Console.WriteLine("Server started!");
 
-            Thread tHC = new Thread(handleConnections);
-            tHC.Start();                            // start connection handling thread
+            Thread tHc = new Thread(HandleConnections);
+            tHc.Start();                            // start connection handling thread
         }
 
         ~Server()
@@ -156,14 +163,15 @@ namespace ChatServer
             Console.WriteLine("Server stopped!");
         }
 
-        public void handleConnections()
+        public void HandleConnections()
         {
             Console.WriteLine("Waiting for a connection...");
             while (true)
             {
-                MySocket = AcceptSocket();
-                OnSocketAccept(MySocket);                  // client connection
+                _mySocket = AcceptSocket();
+                OnSocketAccept?.Invoke(_mySocket); // client connection
             }
+            // no return because of multi-threading
         }
         public delegate void EventConnection(Socket s);
         public event EventConnection OnSocketAccept;
@@ -171,22 +179,7 @@ namespace ChatServer
     }
     class Program
     {
-        static void tick(object sender, ElapsedEventArgs e)
-        {
-            // not implemented
-        }
-        static void mainTimer()
-        {
-            System.Timers.Timer t = new System.Timers.Timer(2000);
-            t.Elapsed += tick;
-            t.Enabled = true;
-            while (true)
-            {
-                Thread.Sleep(100);
-            }
-        }
-
-        static void Main(string[] args)
+        static void Main()
         {
             Server svr = new Server();
             Chatroom room = new Chatroom();
@@ -210,6 +203,7 @@ namespace ChatServer
                 //room.SendGlobalMessage += room.PingConnections;
                 Thread.Sleep(100);
             }
+            // no return because of multi-threading
         }
     }
 }
